@@ -81,10 +81,6 @@ pub fn view<'a>(event: &CalendarEvent, countdown_text: &str) -> Element<'a, Mess
     container(center(card))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(|_: &Theme| container::Style {
-            background: Some(Background::Color(BG_COLOR)),
-            ..Default::default()
-        })
         .into()
 }
 

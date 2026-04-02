@@ -24,6 +24,9 @@ pub enum Message {
     JoinMeeting,
     Snooze(i64),
     SnoozeUntilEvent,
+    /// Enter: join meeting if available, otherwise dismiss
+    Confirm,
+    WindowEvent(window::Id, iced::Event),
 }
 
 pub struct App {
@@ -172,6 +175,36 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
             }
             close_overlay(app)
         }
+
+        Message::Confirm => {
+            if app.current_event.as_ref().is_some_and(|e| e.meeting_url.is_some()) {
+                update(app, Message::JoinMeeting)
+            } else {
+                update(app, Message::Dismiss)
+            }
+        }
+
+        Message::WindowEvent(_id, event) => {
+            if let iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. }) = event {
+                use iced::keyboard::Key;
+                match key.as_ref() {
+                    Key::Named(iced::keyboard::key::Named::Enter) => {
+                        return update(app, Message::Confirm);
+                    }
+                    Key::Named(iced::keyboard::key::Named::Escape) => {
+                        return update(app, Message::Dismiss);
+                    }
+                    Key::Character("1") => {
+                        return update(app, Message::Snooze(60));
+                    }
+                    Key::Character("5") => {
+                        return update(app, Message::Snooze(300));
+                    }
+                    _ => {}
+                }
+            }
+            Task::none()
+        }
     }
 }
 
@@ -186,11 +219,26 @@ fn view(app: &App, _window: window::Id) -> Element<'_, Message> {
 }
 
 fn subscription(app: &App) -> Subscription<Message> {
-    Subscription::batch([
+    let mut subs = vec![
         iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
         iced::time::every(Duration::from_secs(app.settings.poll_interval_seconds as u64))
             .map(|_| Message::SyncCalendar),
-    ])
+    ];
+
+    // Listen for keyboard events when overlay is showing
+    if app.has_overlay() {
+        subs.push(
+            iced::event::listen_with(|event, _status, id| {
+                if let iced::Event::Keyboard(_) = &event {
+                    Some(Message::WindowEvent(id, event))
+                } else {
+                    None
+                }
+            })
+        );
+    }
+
+    Subscription::batch(subs)
 }
 
 /// Get all screen rects as (x, y, width, height) in top-left origin coordinates.
