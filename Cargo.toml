@@ -1,0 +1,41 @@
+[package]
+name = "neverforget"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# GUI
+iced = { version = "0.13", features = ["multi-window", "tokio"] }
+
+# System tray
+tray-icon = "0.19"
+muda = "0.16"
+
+# macOS EventKit bindings
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSError", "block2"] }
+objc2-event-kit = { version = "0.3", features = ["EKEventStore", "EKEvent", "EKCalendar", "EKCalendarItem", "EKSource", "EKTypes", "block2"] }
+objc2-app-kit = { version = "0.3", features = ["NSScreen", "NSGraphics"] }
+block2 = "0.6"
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# URL extraction
+regex = "1"
+
+# URL opening
+open = "5"
+
+# Time handling
+chrono = "0.4"
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# App directories
+dirs = "6"
