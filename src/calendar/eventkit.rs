@@ -1,10 +1,12 @@
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 
 use objc2::rc::Retained;
 use objc2_event_kit::{
     EKAuthorizationStatus, EKCalendar, EKEntityType, EKEvent, EKEventStore,
+    EKEventStoreChangedNotification,
 };
-use objc2_foundation::{NSArray, NSDate};
+use objc2_foundation::{NSArray, NSDate, NSNotificationCenter};
 
 use crate::db::queries::{Calendar, CalendarEvent};
 use crate::meeting_url;
@@ -30,12 +32,44 @@ impl std::error::Error for CalendarError {}
 
 pub struct EventKitStore {
     store: Retained<EKEventStore>,
+    changed: Arc<AtomicBool>,
+    // Hold the observer to prevent it from being deallocated
+    _observer: Option<Retained<objc2::runtime::ProtocolObject<dyn objc2::runtime::NSObjectProtocol>>>,
 }
 
 impl EventKitStore {
     pub fn new() -> Self {
         let store = unsafe { EKEventStore::new() };
-        Self { store }
+        let changed = Arc::new(AtomicBool::new(false));
+
+        // Subscribe to calendar change notifications
+        let changed_flag = changed.clone();
+        let block = block2::RcBlock::new(move |_notification: std::ptr::NonNull<objc2_foundation::NSNotification>| {
+            changed_flag.store(true, Ordering::Relaxed);
+            tracing::debug!("Calendar data changed (EKEventStoreChangedNotification)");
+        });
+
+        let observer = unsafe {
+            let center = NSNotificationCenter::defaultCenter();
+            center.addObserverForName_object_queue_usingBlock(
+                Some(EKEventStoreChangedNotification),
+                Some(&store),
+                None, // deliver on posting thread
+                &block,
+            )
+        };
+
+        Self {
+            store,
+            changed,
+            _observer: Some(observer),
+        }
+    }
+
+    /// Returns true if the calendar data has changed since the last call.
+    /// Resets the flag after reading.
+    pub fn take_changed(&self) -> bool {
+        self.changed.swap(false, Ordering::Relaxed)
     }
 
     fn authorization_status() -> EKAuthorizationStatus {

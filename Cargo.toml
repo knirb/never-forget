@@ -13,7 +13,7 @@ muda = "0.16"
 
 # macOS EventKit bindings
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSError", "block2"] }
+objc2-foundation = { version = "0.3", features = ["NSDate", "NSArray", "NSString", "NSError", "NSNotification", "NSOperation", "block2"] }
 objc2-event-kit = { version = "0.3", features = ["EKEventStore", "EKEvent", "EKCalendar", "EKCalendarItem", "EKSource", "EKTypes", "block2"] }
 objc2-app-kit = { version = "0.3", features = ["NSScreen", "NSGraphics"] }
 block2 = "0.6"

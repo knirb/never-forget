@@ -83,6 +83,14 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
                 }
             }
 
+            // Reactive sync: if EventKit detected a calendar change, sync immediately
+            if let Some(store) = &app.store {
+                if store.take_changed() {
+                    tracing::info!("Calendar changed, syncing immediately");
+                    return Task::done(Message::SyncCalendar);
+                }
+            }
+
             if !app.has_overlay() {
                 let now = App::now();
                 let notify_window = app.settings.notify_seconds_before();
