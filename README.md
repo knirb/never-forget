@@ -56,6 +56,10 @@ Default settings:
 - **SQLite** (via rusqlite) — local event storage
 - **tray-icon** — menu bar integration
 
+## Contributing
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for all commit messages.
+
 ## License
 
 MIT

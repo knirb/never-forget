@@ -49,6 +49,10 @@ pub fn run() -> iced::Result {
     iced::daemon("Never Forget", update, view)
         .subscription(subscription)
         .theme(|_state, _window| Theme::Dark)
+        .style(|_state, _theme| iced::daemon::Appearance {
+            background_color: iced::Color::TRANSPARENT,
+            text_color: iced::Color::WHITE,
+        })
         .run_with(|| {
             let conn = db::open_connection().expect("Failed to open database");
             let settings = Settings::load(&conn).expect("Failed to load settings");
