@@ -4,8 +4,6 @@ use iced::{Alignment, Background, Border, Color, Element, Length, Theme};
 use crate::app::Message;
 use crate::db::queries::CalendarEvent;
 
-const BG_COLOR: Color = Color::from_rgba(0.08, 0.08, 0.10, 0.45);
-const CARD_BG: Color = Color::from_rgba(0.14, 0.14, 0.16, 0.85);
 const ACCENT: Color = Color::from_rgb(1.0, 0.584, 0.0); // #FF9500 orange
 const TEXT_COLOR: Color = Color::WHITE;
 const MUTED_TEXT: Color = Color::from_rgba(1.0, 1.0, 1.0, 0.7);
@@ -68,15 +66,7 @@ pub fn view<'a>(event: &CalendarEvent, countdown_text: &str) -> Element<'a, Mess
 
     // Use a thick left border as the calendar color indicator
     let card = container(card_content)
-        .width(Length::Shrink)
-        .style(move |_: &Theme| container::Style {
-            background: Some(Background::Color(CARD_BG)),
-            border: Border {
-                radius: 12.0.into(),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
+        .width(Length::Shrink);
 
     container(center(card))
         .width(Length::Fill)
