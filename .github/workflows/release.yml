@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Create app bundle
+        run: |
+          APP_NAME="NeverForget"
+          VERSION="${{ steps.version.outputs.version }}"
+          BUNDLE_DIR="target/${APP_NAME}.app"
+          mkdir -p "$BUNDLE_DIR/Contents/MacOS"
+          mkdir -p "$BUNDLE_DIR/Contents/Resources"
+          cp target/release/neverforget "$BUNDLE_DIR/Contents/MacOS/neverforget"
+          sed "s/0\.1\.0/$VERSION/g" Info.plist > "$BUNDLE_DIR/Contents/Info.plist"
+
+      - name: Create zip
+        run: |
+          cd target
+          zip -r "NeverForget-${{ steps.version.outputs.version }}.zip" NeverForget.app
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "target/NeverForget-${{ steps.version.outputs.version }}.zip" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Homebrew cask
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA=$(shasum -a 256 "target/NeverForget-${VERSION}.zip" | awk '{print $1}')
+
+          # Clone the tap repo
+          git clone https://x-access-token:${TAP_TOKEN}@github.com/knirb/homebrew-neverforget.git tap
+
+          # Update the cask formula
+          cat > tap/Casks/neverforget.rb << CASK
+          cask "neverforget" do
+            version "$VERSION"
+            sha256 "$SHA"
+
+            url "https://github.com/knirb/never-forget/releases/download/v#{version}/NeverForget-#{version}.zip"
+            name "Never Forget"
+            desc "Menu bar calendar overlay app"
+            homepage "https://github.com/knirb/never-forget"
+
+            app "NeverForget.app"
+          end
+          CASK
+
+          # Commit and push
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/neverforget.rb
+          git commit -m "Update neverforget to $VERSION"
+          git push
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
