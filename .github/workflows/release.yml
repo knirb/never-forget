@@ -62,26 +62,12 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           SHA=$(shasum -a 256 "target/NeverForget-${VERSION}.zip" | awk '{print $1}')
 
-          # Clone the tap repo
           git clone https://x-access-token:${TAP_TOKEN}@github.com/knirb/homebrew-neverforget.git tap
 
-          # Update the cask formula
-          cat > tap/Casks/neverforget.rb << CASK
-          cask "neverforget" do
-            version "$VERSION"
-            sha256 "$SHA"
-
-            url "https://github.com/knirb/never-forget/releases/download/v#{version}/NeverForget-#{version}.zip"
-            name "Never Forget"
-            desc "Menu bar calendar overlay app"
-            homepage "https://github.com/knirb/never-forget"
-
-            app "NeverForget.app"
-          end
-          CASK
-
-          # Commit and push
           cd tap
+          sed -i '' "s/version \".*\"/version \"$VERSION\"/" Casks/neverforget.rb
+          sed -i '' "s/sha256 \".*\"/sha256 \"$SHA\"/" Casks/neverforget.rb
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Casks/neverforget.rb
