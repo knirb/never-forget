@@ -1,4 +1,5 @@
 mod app;
+mod blur;
 mod calendar;
 mod db;
 mod meeting_url;

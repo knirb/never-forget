@@ -249,6 +249,7 @@ fn show_overlay(app: &mut App, event: CalendarEvent) -> Task<Message> {
         let (id, task) = window::open(settings);
         app.overlay_window_ids.push(id);
         tasks.push(task.discard());
+        tasks.push(crate::blur::apply_blur(id).discard());
         tasks.push(window::gain_focus(id));
     }
 
