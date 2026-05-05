@@ -1,5 +1,10 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
+/// EKParticipantStatusAccepted raw value. Matches Apple EventKit's
+/// EKParticipantStatus enum so we can store the current user's response
+/// status as an integer in the events table.
+pub const ATTENDEE_STATUS_ACCEPTED: i64 = 2;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalendarEvent {
     pub id: String,
@@ -13,6 +18,11 @@ pub struct CalendarEvent {
     pub notes: Option<String>,
     pub meeting_url: Option<String>,
     pub last_synced: i64,
+    /// Current user's response status (raw EKParticipantStatus value).
+    /// `None` when the event has no attendees or the current user is not
+    /// in the attendee list (treated as implicitly accepted — e.g. personal
+    /// events the user created).
+    pub attendee_status: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,8 +42,8 @@ pub struct EventState {
 
 pub fn upsert_event(conn: &Connection, event: &CalendarEvent) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO events (id, calendar_id, calendar_title, calendar_color, title, start_time, end_time, location, notes, meeting_url, last_synced)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        "INSERT INTO events (id, calendar_id, calendar_title, calendar_color, title, start_time, end_time, location, notes, meeting_url, last_synced, attendee_status)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
          ON CONFLICT(id) DO UPDATE SET
             calendar_id = excluded.calendar_id,
             calendar_title = excluded.calendar_title,
@@ -44,7 +54,8 @@ pub fn upsert_event(conn: &Connection, event: &CalendarEvent) -> rusqlite::Resul
             location = excluded.location,
             notes = excluded.notes,
             meeting_url = excluded.meeting_url,
-            last_synced = excluded.last_synced",
+            last_synced = excluded.last_synced,
+            attendee_status = excluded.attendee_status",
         params![
             event.id,
             event.calendar_id,
@@ -57,6 +68,7 @@ pub fn upsert_event(conn: &Connection, event: &CalendarEvent) -> rusqlite::Resul
             event.notes,
             event.meeting_url,
             event.last_synced,
+            event.attendee_status,
         ],
     )?;
     Ok(())
@@ -64,7 +76,7 @@ pub fn upsert_event(conn: &Connection, event: &CalendarEvent) -> rusqlite::Resul
 
 pub fn get_upcoming_events(conn: &Connection, now: i64, within_seconds: i64) -> rusqlite::Result<Vec<CalendarEvent>> {
     let mut stmt = conn.prepare(
-        "SELECT id, calendar_id, calendar_title, calendar_color, title, start_time, end_time, location, notes, meeting_url, last_synced
+        "SELECT id, calendar_id, calendar_title, calendar_color, title, start_time, end_time, location, notes, meeting_url, last_synced, attendee_status
          FROM events
          WHERE start_time >= ?1 AND start_time <= ?2
          ORDER BY start_time ASC",
@@ -83,6 +95,7 @@ pub fn get_upcoming_events(conn: &Connection, now: i64, within_seconds: i64) -> 
                 notes: row.get(8)?,
                 meeting_url: row.get(9)?,
                 last_synced: row.get(10)?,
+                attendee_status: row.get(11)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -92,7 +105,7 @@ pub fn get_upcoming_events(conn: &Connection, now: i64, within_seconds: i64) -> 
 pub fn get_next_events(conn: &Connection, now: i64, limit: usize) -> rusqlite::Result<Vec<CalendarEvent>> {
     let mut stmt = conn.prepare(
         "SELECT e.id, e.calendar_id, e.calendar_title, e.calendar_color, e.title,
-                e.start_time, e.end_time, e.location, e.notes, e.meeting_url, e.last_synced
+                e.start_time, e.end_time, e.location, e.notes, e.meeting_url, e.last_synced, e.attendee_status
          FROM events e
          INNER JOIN calendars c ON e.calendar_id = c.id AND c.enabled = 1
          WHERE e.start_time >= ?1
@@ -113,6 +126,7 @@ pub fn get_next_events(conn: &Connection, now: i64, limit: usize) -> rusqlite::R
                 notes: row.get(8)?,
                 meeting_url: row.get(9)?,
                 last_synced: row.get(10)?,
+                attendee_status: row.get(11)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -252,6 +266,7 @@ mod tests {
             notes: None,
             meeting_url: None,
             last_synced: 100,
+            attendee_status: None,
         }
     }
 

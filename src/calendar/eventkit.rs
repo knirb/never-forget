@@ -217,6 +217,16 @@ impl EventKitStore {
                 ("unknown".to_string(), None, None)
             };
 
+            let attendee_status = ek_event.attendees().and_then(|attendees| {
+                attendees.iter().find_map(|p| {
+                    if p.isCurrentUser() {
+                        Some(p.participantStatus().0 as i64)
+                    } else {
+                        None
+                    }
+                })
+            });
+
             Some(CalendarEvent {
                 id,
                 calendar_id,
@@ -229,6 +239,7 @@ impl EventKitStore {
                 notes,
                 meeting_url,
                 last_synced: now_secs,
+                attendee_status,
             })
         }
     }

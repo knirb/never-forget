@@ -5,6 +5,7 @@ use rusqlite::Connection;
 const MIGRATIONS: &[fn(&Connection) -> rusqlite::Result<()>] = &[
     v1_initial,
     v2_add_calendars,
+    v3_add_attendee_status,
 ];
 
 pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
@@ -84,6 +85,12 @@ fn v2_add_calendars(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+fn v3_add_attendee_status(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "ALTER TABLE events ADD COLUMN attendee_status INTEGER;",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,7 +142,7 @@ mod tests {
         let max_version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(max_version, 2);
+        assert_eq!(max_version, MIGRATIONS.len() as i64);
 
         // calendars table should exist
         conn.execute(

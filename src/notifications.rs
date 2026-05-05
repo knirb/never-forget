@@ -1,21 +1,23 @@
-use crate::db::queries::CalendarEvent;
+use crate::db::queries::{CalendarEvent, ATTENDEE_STATUS_ACCEPTED};
 use rusqlite::{Connection, params};
 
 pub fn get_events_to_notify(conn: &Connection, now: i64, notify_seconds_before: i64) -> rusqlite::Result<Vec<CalendarEvent>> {
     let mut stmt = conn.prepare(
         "SELECT e.id, e.calendar_id, e.calendar_title, e.calendar_color, e.title,
-                e.start_time, e.end_time, e.location, e.notes, e.meeting_url, e.last_synced
+                e.start_time, e.end_time, e.location, e.notes, e.meeting_url, e.last_synced,
+                e.attendee_status
          FROM events e
          LEFT JOIN event_state es ON e.id = es.event_id
          INNER JOIN calendars c ON e.calendar_id = c.id AND c.enabled = 1
          WHERE e.start_time >= ?1 AND e.start_time <= ?2
+           AND (e.attendee_status IS NULL OR e.attendee_status = ?4)
            AND (es.event_id IS NULL
                 OR (es.dismissed_at IS NULL
                     AND (es.snoozed_until IS NULL OR es.snoozed_until <= ?3)))
          ORDER BY e.start_time ASC",
     )?;
     let events = stmt
-        .query_map(params![now, now + notify_seconds_before, now], |row| {
+        .query_map(params![now, now + notify_seconds_before, now, ATTENDEE_STATUS_ACCEPTED], |row| {
             Ok(CalendarEvent {
                 id: row.get(0)?,
                 calendar_id: row.get(1)?,
@@ -28,6 +30,7 @@ pub fn get_events_to_notify(conn: &Connection, now: i64, notify_seconds_before: 
                 notes: row.get(8)?,
                 meeting_url: row.get(9)?,
                 last_synced: row.get(10)?,
+                attendee_status: row.get(11)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -53,6 +56,7 @@ mod tests {
             notes: None,
             meeting_url: None,
             last_synced: 100,
+            attendee_status: None,
         }
     }
 
@@ -121,6 +125,58 @@ mod tests {
             enabled: false,
         }).unwrap();
         upsert_event(&conn, &make_event("ev-1", "Hidden", 1000, 1500)).unwrap();
+        let events = get_events_to_notify(&conn, 940, 120).unwrap();
+        assert!(events.is_empty());
+    }
+
+    fn make_event_with_status(id: &str, title: &str, start: i64, end: i64, status: Option<i64>) -> CalendarEvent {
+        let mut event = make_event(id, title, start, end);
+        event.attendee_status = status;
+        event
+    }
+
+    #[test]
+    fn test_accepted_event_returned() {
+        let conn = setup_with_calendar();
+        upsert_event(&conn, &make_event_with_status("ev-1", "Accepted", 1000, 1500, Some(ATTENDEE_STATUS_ACCEPTED))).unwrap();
+        let events = get_events_to_notify(&conn, 940, 120).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "Accepted");
+    }
+
+    #[test]
+    fn test_no_attendee_status_returned() {
+        // Events without attendees (personal events) have null status — show them.
+        let conn = setup_with_calendar();
+        upsert_event(&conn, &make_event_with_status("ev-1", "Personal", 1000, 1500, None)).unwrap();
+        let events = get_events_to_notify(&conn, 940, 120).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "Personal");
+    }
+
+    #[test]
+    fn test_declined_event_filtered() {
+        let conn = setup_with_calendar();
+        // EKParticipantStatusDeclined = 3
+        upsert_event(&conn, &make_event_with_status("ev-1", "Declined", 1000, 1500, Some(3))).unwrap();
+        let events = get_events_to_notify(&conn, 940, 120).unwrap();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_tentative_event_filtered() {
+        let conn = setup_with_calendar();
+        // EKParticipantStatusTentative = 4
+        upsert_event(&conn, &make_event_with_status("ev-1", "Tentative", 1000, 1500, Some(4))).unwrap();
+        let events = get_events_to_notify(&conn, 940, 120).unwrap();
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_pending_event_filtered() {
+        let conn = setup_with_calendar();
+        // EKParticipantStatusPending = 1
+        upsert_event(&conn, &make_event_with_status("ev-1", "Pending", 1000, 1500, Some(1))).unwrap();
         let events = get_events_to_notify(&conn, 940, 120).unwrap();
         assert!(events.is_empty());
     }
