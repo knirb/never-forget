@@ -88,6 +88,10 @@ fn update(app: &mut App, message: Message) -> Task<Message> {
                 if event.id.0 == app.tray.quit_id() {
                     std::process::exit(0);
                 }
+                #[cfg(debug_assertions)]
+                if event.id.0 == app.tray.debug_show_next_id() {
+                    return debug_show_next_overlay(app);
+                }
             }
 
             // Reactive sync: if EventKit detected a calendar change, sync immediately
@@ -303,6 +307,29 @@ fn show_overlay(app: &mut App, event: CalendarEvent) -> Task<Message> {
 
     tracing::debug!("Opening overlay on {} screen(s)", screens.len());
     Task::batch(tasks)
+}
+
+#[cfg(debug_assertions)]
+fn debug_show_next_overlay(app: &mut App) -> Task<Message> {
+    if app.has_overlay() {
+        return Task::none();
+    }
+    let now = App::now();
+    match queries::get_next_events(&app.conn, now, 1) {
+        Ok(events) => {
+            if let Some(event) = events.into_iter().next() {
+                tracing::info!("Debug: forcing overlay for next event '{}'", event.title);
+                show_overlay(app, event)
+            } else {
+                tracing::info!("Debug: no upcoming events to show");
+                Task::none()
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Debug: failed to query next event: {e}");
+            Task::none()
+        }
+    }
 }
 
 fn close_overlay(app: &mut App) -> Task<Message> {

@@ -19,6 +19,16 @@ pub fn view<'a>(event: &CalendarEvent, countdown_text: &str) -> Element<'a, Mess
         .size(18)
         .color(MUTED_TEXT);
 
+    let location = if let Some(loc) = event.location.as_ref().filter(|l| !l.is_empty()) {
+        column![
+            text(loc.clone())
+                .size(16)
+                .color(MUTED_TEXT),
+        ]
+    } else {
+        column![]
+    };
+
     let countdown = text(countdown_text.to_string())
         .size(16)
         .color(MUTED_TEXT);
@@ -49,6 +59,7 @@ pub fn view<'a>(event: &CalendarEvent, countdown_text: &str) -> Element<'a, Mess
     let card_content = column![
         title,
         time_range,
+        location,
         Space::with_height(8),
         countdown,
         Space::with_height(20),

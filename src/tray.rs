@@ -6,6 +6,8 @@ use crate::db::queries::CalendarEvent;
 pub struct Tray {
     menu: Menu,
     quit_id: String,
+    #[cfg(debug_assertions)]
+    debug_show_next_id: String,
     event_items: Vec<MenuItem>,
 }
 
@@ -16,6 +18,15 @@ impl Tray {
         let no_events = MenuItem::new("No upcoming events", false, None);
         menu.append(&no_events).expect("Failed to add menu item");
         menu.append(&PredefinedMenuItem::separator()).expect("Failed to add separator");
+
+        #[cfg(debug_assertions)]
+        let debug_show_next_id = {
+            let item = MenuItem::new("Debug: Show Next Overlay", true, None);
+            let id = item.id().0.clone();
+            menu.append(&item).expect("Failed to add debug item");
+            menu.append(&PredefinedMenuItem::separator()).expect("Failed to add separator");
+            id
+        };
 
         let quit_item = MenuItem::new("Quit Never Forget", true, None);
         let quit_id = quit_item.id().0.clone();
@@ -37,12 +48,19 @@ impl Tray {
         Self {
             menu,
             quit_id,
+            #[cfg(debug_assertions)]
+            debug_show_next_id,
             event_items: vec![no_events],
         }
     }
 
     pub fn quit_id(&self) -> &str {
         &self.quit_id
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn debug_show_next_id(&self) -> &str {
+        &self.debug_show_next_id
     }
 
     pub fn update_events(&mut self, events: &[CalendarEvent]) {
