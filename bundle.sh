@@ -15,6 +15,10 @@ mkdir -p "$BUNDLE_DIR/Contents/Resources"
 cp target/release/neverforget "$BUNDLE_DIR/Contents/MacOS/neverforget"
 cp Info.plist "$BUNDLE_DIR/Contents/Info.plist"
 
+echo "Ad-hoc signing bundle..."
+codesign --force --deep --sign - "$BUNDLE_DIR"
+codesign --verify --verbose "$BUNDLE_DIR"
+
 echo "Bundle created at: $BUNDLE_DIR"
 echo ""
 echo "To run:  open $BUNDLE_DIR"
