@@ -1,9 +1,12 @@
 use rusqlite::{Connection, OptionalExtension, params};
 
-/// EKParticipantStatusAccepted raw value. Matches Apple EventKit's
-/// EKParticipantStatus enum so we can store the current user's response
-/// status as an integer in the events table.
+/// Raw values of Apple EventKit's EKParticipantStatus enum, stored as
+/// integers in the events table for the current user's response status.
+pub const ATTENDEE_STATUS_UNKNOWN: i64 = 0;
+pub const ATTENDEE_STATUS_PENDING: i64 = 1;
 pub const ATTENDEE_STATUS_ACCEPTED: i64 = 2;
+pub const ATTENDEE_STATUS_DECLINED: i64 = 3;
+pub const ATTENDEE_STATUS_TENTATIVE: i64 = 4;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CalendarEvent {
