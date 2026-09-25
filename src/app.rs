@@ -35,6 +35,8 @@ pub struct App {
     store: Option<EventKitStore>,
     tray: Tray,
     overlay_window_ids: Vec<window::Id>,
+    overlay_screens: Vec<(f32, f32, f32, f32)>,
+    overlay_visible: bool,
     current_event: Option<CalendarEvent>,
 }
 
@@ -44,7 +46,7 @@ impl App {
     }
 
     fn has_overlay(&self) -> bool {
-        !self.overlay_window_ids.is_empty()
+        self.overlay_visible
     }
 }
 
@@ -74,6 +76,8 @@ pub fn run() -> iced::Result {
                 store: if access { Some(store) } else { None },
                 tray,
                 overlay_window_ids: Vec::new(),
+                overlay_screens: Vec::new(),
+                overlay_visible: false,
                 current_event: None,
             };
 
@@ -282,9 +286,34 @@ fn show_overlay(app: &mut App, event: CalendarEvent) -> Task<Message> {
     }
 
     app.current_event = Some(event);
+    app.overlay_visible = true;
 
     let screens = get_screen_rects();
-    let mut tasks: Vec<Task<Message>> = Vec::new();
+
+    // Reuse the existing (hidden) windows when the screen layout is
+    // unchanged. Destroying and recreating windows leaks their GPU surface
+    // memory (iced 0.13/winit 0.30/wgpu 0.19 bug), so windows are created
+    // once and toggled with change_mode instead.
+    if !app.overlay_window_ids.is_empty() && screens == app.overlay_screens {
+        tracing::debug!("Showing overlay on {} reused window(s)", screens.len());
+        let tasks: Vec<Task<Message>> = app
+            .overlay_window_ids
+            .iter()
+            .map(|&id| {
+                window::change_mode::<Message>(id, window::Mode::Windowed)
+                    .chain(window::gain_focus(id))
+            })
+            .collect();
+        return Task::batch(tasks);
+    }
+
+    // First overlay, or the screen layout changed: (re)create the windows.
+    let mut tasks: Vec<Task<Message>> = app
+        .overlay_window_ids
+        .drain(..)
+        .map(window::close)
+        .collect();
+    app.overlay_screens = screens.clone();
 
     for (x, y, w, h) in &screens {
         let settings = window::Settings {
@@ -334,12 +363,17 @@ fn debug_show_next_overlay(app: &mut App) -> Task<Message> {
 
 fn close_overlay(app: &mut App) -> Task<Message> {
     app.current_event = None;
-    let ids: Vec<window::Id> = app.overlay_window_ids.drain(..).collect();
-    if ids.is_empty() {
-        Task::none()
-    } else {
-        Task::batch(ids.into_iter().map(window::close))
+    if !app.overlay_visible {
+        return Task::none();
     }
+    app.overlay_visible = false;
+    // Hide instead of close: the windows (and their GPU surfaces) are kept
+    // for reuse by the next overlay. See show_overlay.
+    Task::batch(
+        app.overlay_window_ids
+            .iter()
+            .map(|&id| window::change_mode(id, window::Mode::Hidden)),
+    )
 }
 
 fn format_countdown(seconds_until: i64) -> String {
