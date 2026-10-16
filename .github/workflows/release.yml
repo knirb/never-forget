@@ -42,11 +42,14 @@ jobs:
           mkdir -p "$BUNDLE_DIR/Contents/Resources"
           cp target/release/neverforget "$BUNDLE_DIR/Contents/MacOS/neverforget"
           sed "s/0\.1\.0/$VERSION/g" Info.plist > "$BUNDLE_DIR/Contents/Info.plist"
+          codesign --force --deep --sign - "$BUNDLE_DIR"
+          codesign --verify --verbose "$BUNDLE_DIR"
 
       - name: Create zip
         run: |
           cd target
-          zip -r "NeverForget-${{ steps.version.outputs.version }}.zip" NeverForget.app
+          # ditto preserves macOS metadata + signature; plain `zip` can mangle bundles.
+          ditto -c -k --sequesterRsrc --keepParent NeverForget.app "NeverForget-${{ steps.version.outputs.version }}.zip"
 
       - name: Create GitHub Release
         run: |
